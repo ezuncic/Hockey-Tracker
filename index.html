@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Hockey Stat Tracker</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 1rem; background: #f8f9fa; }
+    h1, h2 { text-align: center; }
+    .section { margin-bottom: 1.5rem; }
+    .form-group { margin-bottom: 1rem; }
+    label { font-weight: bold; display: block; margin-bottom: 0.3rem; }
+    input, select, button {
+      width: 100%; padding: 0.6rem; font-size: 1rem;
+      border-radius: 4px; border: 1px solid #ccc; margin-top: 0.2rem;
+    }
+    button { background: #007bff; color: white; border: none; }
+    button:hover { background: #0056b3; cursor: pointer; }
+    .player-buttons button {
+      width: 30%; margin: 0.2rem; background: #6c757d;
+    }
+    .player-buttons .selected { background: #28a745 !important; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
+    th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; font-size: 0.9rem; }
+    .scrollable { overflow-x: auto; }
+    @media (max-width: 600px) {
+      .player-buttons button { width: 45%; }
+      th, td { font-size: 0.75rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>🏒 Hockey Stat Tracker</h1>
+
+  <div class="section">
+    <label for="gameName">Start New Game:</label>
+    <input id="gameName" placeholder="e.g. vs Rivals 07/29" />
+    <button onclick="startNewGame()">Start Game</button>
+  </div>
+
+  <div class="section">
+    <label for="gameSelector">Current Game:</label>
+    <select id="gameSelector" onchange="switchGame(this.value)"></select>
+  </div>
+
+  <div class="section">
+    <h2>➕ Add Goal Event</h2>
+
+    <div class="form-group">
+      <label for="eventType">Event Type:</label>
+      <select id="eventType">
+        <option value="goal_for">Goal For</option>
+        <option value="goal_against">Goal Against</option>
+      </select>
+    </div>
+
+    <div id="goalDetails">
+      <div class="form-group">
+        <label>Scorer:</label>
+        <div class="player-buttons" id="scorerButtons"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Assist 1:</label>
+        <div class="player-buttons" id="assist1Buttons"></div>
+      </div>
+
+      <div class="form-group">
+        <label>Assist 2:</label>
+        <div class="player-buttons" id="assist2Buttons"></div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label>Players on Ice:</label>
+      <div class="player-buttons" id="onIceButtons"></div>
+    </div>
+
+    <button onclick="submitEvent()">Submit Event</button>
+  </div>
+
+  <div class="section">
+    <h2>📊 Player Stats</h2>
+    <label>View:</label>
+    <select onchange="renderStatsTable()" id="viewMode">
+      <option value="current">Current Game</option>
+      <option value="total">All Games (Cumulative)</option>
+    </select>
+
+    <div class="scrollable">
+      <table>
+        <thead>
+          <tr>
+            <th>Player</th><th>Goals</th><th>Assists</th>
+            <th>GF</th><th>GA</th><th>+/-</th>
+          </tr>
+        </thead>
+        <tbody id="statsTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    const players = [
+      { number: 24, name: 'Zuncic' },
+      { number: 10, name: 'Cuccia' },
+      { number: 3, name: 'Ernst' },
+      { number: 93, name: 'Gedney' },
+      { number: 44, name: 'Gordon' },
+      { number: 36, name: 'Kinnally' },
+      { number: 50, name: 'Naftalis' },
+      { number: 33, name: 'Nassar' },
+      { number: 77, name: 'Ringler' },
+      { number: 15, name: 'Swainson' },
+      { number: 11, name: 'Waldman' },
+      { number: 51, name: 'Winner' },
+      { number: 7, name: 'Player 13' },
+      { number: 19, name: 'Player 14' },
+      { number: 88, name: 'Player 15' }
+    ];
+
+    let data = {
+      currentGameId: null,
+      games: {}
+    };
+
+    if (localStorage.getItem('hockeyData')) {
+      data = JSON.parse(localStorage.getItem('hockeyData'));
+    }
+
+    function saveData() {
+      localStorage.setItem('hockeyData', JSON.stringify(data));
+    }
+
+    function startNewGame() {
+      const name = document.getElementById('gameName').value.trim();
+      if (!name) return alert("Enter a game name.");
+      const id = 'game_' + new Date().toISOString();
+      data.currentGameId = id;
+      data.games[id] = { name, events: [], stats: {} };
+      updateGameSelector();
+      renderStatsTable();
+      saveData();
+    }
+
+    function updateGameSelector() {
+      const select = document.getElementById('gameSelector');
+      select.innerHTML = '';
+      Object.keys(data.games).forEach(id => {
+        const opt = document.createElement('option');
+        opt.value = id;
+        opt.textContent = data.games[id].name;
+        if (id === data.currentGameId) opt.selected = true;
+        select.appendChild(opt);
+      });
+    }
+
+    function switchGame(id) {
+      data.currentGameId = id;
+      renderStatsTable();
+      saveData();
+    }
+
+    function renderPlayerButtons(containerId, single = true) {
+      const container = document.getElementById(containerId);
+      container.innerHTML = '';
+      players.forEach(p => {
+        const btn = document.createElement('button');
+        btn.textContent = `#${p.number} ${p.name}`;
+        btn.onclick = () => {
+          if (single) {
+            Array.from(container.children).forEach(b => b.classList.remove('selected'));
+            btn.classList.add('selected');
+          } else {
+            btn.classList.toggle('selected');
+          }
+        };
+        container.appendChild(btn);
+      });
+    }
+
+    renderPlayerButtons('scorerButtons', true);
+    renderPlayerButtons('assist1Buttons', true);
+    renderPlayerButtons('assist2Buttons', true);
+    renderPlayerButtons('onIceButtons', false);
+
+    function getSelected(containerId) {
+      return Array.from(document.getElementById(containerId).querySelectorAll('.selected'))
+                  .map(btn => parseInt(btn.textContent.match(/#(\d+)/)[1]));
+    }
+
+    function submitEvent() {
+      if (!data.currentGameId) return alert("Start or select a game first.");
+      const game = data.games[data.currentGameId];
+      const type = document.getElementById('eventType').value;
+      const scorer = getSelected('scorerButtons')[0] || null;
+      const assists = getSelected('assist1Buttons').concat(getSelected('assist2Buttons'));
+      const onIce = getSelected('onIceButtons');
+
+      if (onIce.length < 5) return alert("Select at least 5 players on ice.");
+
+      const event = { type, scorer, assists, onIce };
+      game.events.push(event);
+
+      // Update stats
+      onIce.forEach(n => {
+        if (!game.stats[n]) game.stats[n] = { goals: 0, assists: 0, gf: 0, ga: 0 };
+        type === 'goal_for' ? game.stats[n].gf++ : game.stats[n].ga++;
+      });
+
+      if (type === 'goal_for') {
+        if (scorer) {
+          game.stats[scorer] = game.stats[scorer] || { goals: 0, assists: 0, gf: 0, ga: 0 };
+          game.stats[scorer].goals++;
+        }
+        assists.forEach(a => {
+          game.stats[a] = game.stats[a] || { goals: 0, assists: 0, gf: 0, ga: 0 };
+          game.stats[a].assists++;
+        });
+      }
+
+      clearSelections();
+      renderStatsTable();
+      saveData();
+    }
+
+    function clearSelections() {
+      ['scorerButtons', 'assist1Buttons', 'assist2Buttons', 'onIceButtons'].forEach(id => {
+        document.getElementById(id).querySelectorAll('.selected').forEach(b => b.classList.remove('selected'));
+      });
+    }
+
+    function renderStatsTable() {
+      const tbody = document.getElementById('statsTableBody');
+      tbody.innerHTML = '';
+      const viewMode = document.getElementById('viewMode').value;
+      const stats = {};
+
+      Object.keys(data.games).forEach(gameId => {
+        const gameStats = data.games[gameId].stats;
+        if (viewMode === 'current' && gameId !== data.currentGameId) return;
+        Object.keys(gameStats).forEach(num => {
+          if (!stats[num]) stats[num] = { goals: 0, assists: 0, gf: 0, ga: 0 };
+          ['goals', 'assists', 'gf', 'ga'].forEach(stat => {
+            stats[num][stat] += gameStats[num][stat];
+          });
+        });
+      });
+
+      Object.keys(stats).sort((a, b) => a - b).forEach(num => {
+        const p = players.find(pl => pl.number == num);
+        const name = p ? p.name : `#${num}`;
+        const s = stats[num];
+        const plusMinus = s.gf - s.ga;
+        const row = `<tr>
+          <td>#${num} ${name}</td>
+          <td>${s.goals}</td><td>${s.assists}</td>
+          <td>${s.gf}</td><td>${s.ga}</td>
+          <td>${plusMinus >= 0 ? '+' : ''}${plusMinus}</td>
+        </tr>`;
+        tbody.innerHTML += row;
+      });
+    }
+
+    // Toggle scorer/assist sections based on event type
+    document.getElementById('eventType').addEventListener('change', function () {
+      const show = this.value === 'goal_for';
+      document.getElementById('goalDetails').style.display = show ? 'block' : 'none';
+    });
+
+    // Initial visibility
+    document.getElementById('goalDetails').style.display =
+      document.getElementById('eventType').value === 'goal_for' ? 'block' : 'none';
+
+    // Init
+    updateGameSelector();
+    renderStatsTable();
+  </script>
+</body>
+</html>
