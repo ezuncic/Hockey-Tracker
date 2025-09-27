@@ -16,6 +16,8 @@
     }
     button { background: #007bff; color: white; border: none; }
     button:hover { background: #0056b3; cursor: pointer; }
+    button.export-btn { background: #28a745; margin-top: 0.5rem; }
+    button.export-btn:hover { background: #1e7e34; }
     .player-buttons button {
       width: 30%; margin: 0.2rem; background: #6c757d;
     }
@@ -23,6 +25,7 @@
     table { width: 100%; border-collapse: collapse; margin-top: 1rem; background: white; }
     th, td { border: 1px solid #ccc; padding: 0.5rem; text-align: center; font-size: 0.9rem; }
     .scrollable { overflow-x: auto; }
+    .export-section { background: #e9f7ef; padding: 1rem; border-radius: 4px; }
     @media (max-width: 600px) {
       .player-buttons button { width: 45%; }
       th, td { font-size: 0.75rem; }
@@ -80,6 +83,13 @@
     <button onclick="submitEvent()">Submit Event</button>
   </div>
 
+  <div class="section export-section">
+    <h2>📤 Export Data</h2>
+    <p>Download your hockey stats data for analysis or backup:</p>
+    <button class="export-btn" onclick="exportData()">📥 Download Data (JSON)</button>
+    <button class="export-btn" onclick="exportStatsCSV()">📊 Download Stats Summary (CSV)</button>
+  </div>
+
   <div class="section">
     <h2>📊 Player Stats</h2>
     <label>View:</label>
@@ -131,6 +141,50 @@
 
     function saveData() {
       localStorage.setItem('hockeyData', JSON.stringify(data));
+    }
+
+    function exportData() {
+      const jsonData = JSON.stringify(data, null, 2);
+      const blob = new Blob([jsonData], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hockey-stats-${new Date().toISOString().split('T')[0]}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function exportStatsCSV() {
+      // Calculate cumulative stats
+      const stats = {};
+      Object.keys(data.games).forEach(gameId => {
+        const gameStats = data.games[gameId].stats;
+        Object.keys(gameStats).forEach(num => {
+          if (!stats[num]) stats[num] = { goals: 0, assists: 0, gf: 0, ga: 0 };
+          ['goals', 'assists', 'gf', 'ga'].forEach(stat => {
+            stats[num][stat] += gameStats[num][stat];
+          });
+        });
+      });
+
+      // Create CSV content
+      let csvContent = 'Player Number,Player Name,Goals,Assists,Points,Goals For,Goals Against,Plus Minus\n';
+      Object.keys(stats).sort((a, b) => a - b).forEach(num => {
+        const p = players.find(pl => pl.number == num);
+        const name = p ? p.name : `Player ${num}`;
+        const s = stats[num];
+        const points = s.goals + s.assists;
+        const plusMinus = s.gf - s.ga;
+        csvContent += `${num},"${name}",${s.goals},${s.assists},${points},${s.gf},${s.ga},${plusMinus}\n`;
+      });
+
+      const blob = new Blob([csvContent], { type: 'text/csv' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `hockey-stats-summary-${new Date().toISOString().split('T')[0]}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
     }
 
     function startNewGame() {
@@ -275,6 +329,10 @@
 
     // Init
     updateGameSelector();
+    renderStatsTable();
+  </script>
+</body>
+</html>
     renderStatsTable();
   </script>
 </body>
